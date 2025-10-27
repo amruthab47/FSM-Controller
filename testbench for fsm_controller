@@ -1,0 +1,71 @@
+`module tb_safe_lock;
+    reg clk, reset, key_valid, tamper, cancel;
+    reg [3:0] key_value;
+    wire lock, alarm;
+    wire [6:0] seg;
+    wire [3:0] an;
+
+    fsm_controller dut(
+        .clk(clk),
+        .reset(reset),
+        .key_valid(key_valid),
+        .tamper(tamper),
+        .cancel(cancel),
+        .key_value(key_value),
+        .lock(lock),
+        .alarm(alarm),
+        .seg(seg),
+        .an(an)
+    );
+
+    // Clock
+    initial clk = 0;
+    always #5 clk = ~clk;
+
+    // Simulate key entry
+    task enter_pin(input [15:0] pin);
+        integer i;
+        reg [3:0] digit;
+        begin
+            for (i = 12; i >= 0; i = i - 4) begin
+                digit = pin[i +: 4];
+                key_value = digit;
+                key_valid = 1; #10; key_valid = 0; #10;
+            end
+        end
+    endtask
+
+    initial begin
+        $display("Starting Digital Safe Lock Simulation...");
+        reset = 1; key_valid = 0; tamper = 0; cancel = 0; #20; reset = 0;
+
+        // Correct PIN unlock
+        $display("Test 1: Correct PIN");
+        enter_pin(16'd1234);
+        #50; cancel = 1; #10; cancel = 0;
+
+        // Wrong attempts
+        $display("Test 2: Wrong PIN");
+        enter_pin(16'd9999);
+        #50;
+
+        // Enter admin mode to change PIN
+        $display("Test 3: Admin PIN (7219) for PIN Change");
+        enter_pin(16'd7219);
+        #20;
+        enter_pin(16'd4321); // new PIN
+        #20;
+
+        // Try new PIN
+        $display("Test 4: Unlock using new PIN");
+        enter_pin(16'd4321);
+        #100;
+
+        // Tamper trigger
+        $display("Test 5: Tamper detection");
+        tamper = 1; #20; tamper = 0;
+
+        $display("Simulation Complete.");
+        #100 $finish;
+    end
+endmodule
